@@ -419,6 +419,8 @@ void State::buildRemote(ref<Store> destStore,
             }
 
             if (totalNarSize > maxOutputSize) {
+                printMsg(lvlInfo, format("total output size %d bytes exceeds configuration of %d bytes")
+                    % maxOutputSize % totalNarSize);
                 result.stepStatus = bsNarSizeLimitExceeded;
                 return;
             }
