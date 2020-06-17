@@ -42,27 +42,37 @@ void State::queueMonitorLoop()
 
         /* Sleep until we get notification from the database about an
            event. */
+        auto num_notifs = 0;
         if (done) {
-            conn->await_notification();
+            num_notifs = conn->await_notification(5*60, 0);
             nrQueueWakeups++;
         } else
-            conn->get_notifs();
+            num_notifs = conn->get_notifs();
 
+        auto had_work = false;
         if (auto lowestId = buildsAdded.get()) {
+            auto oldLastBuildId = lastBuildId;
             lastBuildId = std::min(lastBuildId, static_cast<unsigned>(std::stoul(*lowestId) - 1));
-            printMsg(lvlTalkative, "got notification: new builds added to the queue");
+            printMsg(lvlInfo, "got notification: new builds added to the queue: lowest build id: %d, old last build id: %d, new last build id: %d", *lowestId, oldLastBuildId, lastBuildId);
+            had_work = true;
         }
         if (buildsRestarted.get()) {
             printMsg(lvlTalkative, "got notification: builds restarted");
             lastBuildId = 0; // check all builds
+            had_work = true;
         }
         if (buildsCancelled.get() || buildsDeleted.get() || buildsBumped.get()) {
             printMsg(lvlTalkative, "got notification: builds cancelled or bumped");
             processQueueChange(*conn);
+            had_work = true;
         }
         if (jobsetSharesChanged.get()) {
             printMsg(lvlTalkative, "got notification: jobset shares changed");
             processJobsetSharesChange(*conn);
+            had_work = true;
+        }
+        if (num_notifs == 0 && had_work) {
+            printMsg(lvlError, "################################################ await_notification timed out, but there was working pending!");
         }
     }
 }
